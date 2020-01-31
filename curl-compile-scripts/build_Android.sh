@@ -20,8 +20,8 @@ CURLPATH="$SCRIPTPATH/../curl"
 SSLPATH="$SCRIPTPATH/../openssl"
 
 if [ -z "$NDK_ROOT" ]; then
-	echo "Please set your NDK_ROOT environment variable first"
-	exit 1
+	cd ~/Library/Android/sdk/ndk-bundle
+	export NDK_ROOT=`pwd`
 fi
 
 if [[ "$NDK_ROOT" == .* ]]; then
