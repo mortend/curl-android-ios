@@ -13,10 +13,10 @@ cd $CURLPATH
 mkdir -p build-vc141 && cd build-vc141
 
 cmake -G"Visual Studio 15 2017 Win64" .. \
-    -DCMAKE_USE_WINSSL=ON \
-    -DBUILD_CURL_EXE=OFF \
-    -DBUILD_SHARED_LIBS=OFF \
-    -DBUILD_TESTING=OFF
+	-DCMAKE_USE_WINSSL=ON \
+	-DBUILD_CURL_EXE=OFF \
+	-DBUILD_SHARED_LIBS=OFF \
+	-DBUILD_TESTING=OFF
 
 cmake --build . -- //p:Configuration=Debug
 cmake --build . -- //p:Configuration=Release
