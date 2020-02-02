@@ -33,37 +33,43 @@ fi
 
 git apply ../patches/patch_curl_fixes1172.diff
 
-export CC="$XCODE/Toolchains/XcodeDefault.xctoolchain/usr/bin/clang"
 DESTDIR="$SCRIPTPATH/../prebuilt-with-ssl/tvOS"
 
-export TVOS_DEPLOYMENT_TARGET="10"
-ARCHS=(arm64 x86_64)
-HOSTS=(arm64 x86_64)
-PLATFORMS=(AppleTVOS AppleTVSimulator)
-SDK=(AppleTVOS AppleTVSimulator)
+# The following is based on https://github.com/jasonacox/Build-OpenSSL-cURL/blob/master/curl/libcurl-build.sh
+TVOS_SDK_VERSION=""
+TVOS_MIN_SDK_VERSION="9.0"
+OPENSSL="${PWD}/../openssl"  
+DEVELOPER=`xcode-select -print-path`
 
-#Build for all the architectures
-for (( i=0; i<${#ARCHS[@]}; i++ )); do
-	ARCH=${ARCHS[$i]}
-	export CFLAGS="-arch $ARCH -pipe -Os -gdwarf-2 -isysroot $XCODE/Platforms/${PLATFORMS[$i]}.platform/Developer/SDKs/${SDK[$i]}.sdk -miphoneos-version-min=${IPHONEOS_DEPLOYMENT_TARGET} -fembed-bitcode -Werror=partial-availability -DHAVE_SOCKET -DHAVE_FCNTL_O_NONBLOCK"
-	export LDFLAGS="-arch $ARCH -isysroot $XCODE/Platforms/${PLATFORMS[$i]}.platform/Developer/SDKs/${SDK[$i]}.sdk"
-	if [ "${PLATFORMS[$i]}" = "AppleTVSimulator" ]; then
-		export CPPFLAGS="-D__TVOS_VERSION_MIN_REQUIRED=${TVOS_DEPLOYMENT_TARGET%%.*}0000"
+buildTVOS()
+{
+	ARCH=$1
+
+	pushd . > /dev/null
+	cd "../curl"
+  
+	if [[ "${ARCH}" == "i386" || "${ARCH}" == "x86_64" ]]; then
+		PLATFORM="AppleTVSimulator"
+	else
+		PLATFORM="AppleTVOS"
 	fi
-	cd "$CURLPATH"
-	./configure	--host="${HOSTS[$i]}-apple-darwin" \
-			--with-darwinssl \
-			--enable-static \
-			--disable-shared \
-			--enable-threaded-resolver \
-			--disable-verbose \
-			--enable-ipv6
-	EXITCODE=$?
-	if [ $EXITCODE -ne 0 ]; then
-		echo "Error running the cURL configure program"
-		cd "$PWD"
-		exit $EXITCODE
-	fi
+	
+	export $PLATFORM
+	export CROSS_TOP="${DEVELOPER}/Platforms/${PLATFORM}.platform/Developer"
+	export CROSS_SDK="${PLATFORM}${TVOS_SDK_VERSION}.sdk"
+	export BUILD_TOOLS="${DEVELOPER}"
+	export CC="${BUILD_TOOLS}/usr/bin/gcc"
+	export CFLAGS="-arch ${ARCH} -pipe -Os -gdwarf-2 -isysroot ${CROSS_TOP}/SDKs/${CROSS_SDK} -mtvos-version-min=${TVOS_MIN_SDK_VERSION} -fembed-bitcode"
+	export LDFLAGS="-arch ${ARCH} -isysroot ${CROSS_TOP}/SDKs/${CROSS_SDK} -L${OPENSSL}/tvOS/lib ${NGHTTP2LIB}"
+#	export PKG_CONFIG_PATH 
+   
+	echo "Building ${PLATFORM} ${ARCH}"
+
+	./configure --host="arm-apple-darwin" -disable-shared -with-random=/dev/urandom --disable-ntlm-wb --with-ssl="${OPENSSL}/tvOS" ${NGHTTP2CFG}
+
+	# Patch to not use fork() since it's not available on tvOS
+        LANG=C sed -i -- 's/define HAVE_FORK 1/define HAVE_FORK 0/' "./lib/curl_config.h"
+        LANG=C sed -i -- 's/HAVE_FORK"]=" 1"/HAVE_FORK\"]=" 0"/' "config.status"
 
 	make -j $(sysctl -n hw.logicalcpu_max)
 	EXITCODE=$?
@@ -75,15 +81,19 @@ for (( i=0; i<${#ARCHS[@]}; i++ )); do
 	mkdir -p "$DESTDIR/$ARCH"
 	cp "$CURLPATH/lib/.libs/libcurl.a" "$DESTDIR/$ARCH/"
 	cp "$CURLPATH/lib/.libs/libcurl.a" "$DESTDIR/libcurl-$ARCH.a"
-	make clean
-done
+	#make clean
+	popd > /dev/null
+}
+
+buildTVOS "arm64"
+buildTVOS "x86_64"
 
 git checkout $CURLPATH
 
 #Build a single static lib with all the archs in it
 cd "$DESTDIR"
 lipo -create -output libcurl.a libcurl-*.a
-rm libcurl-*.a
+#rm libcurl-*.a
 
 #Copying cURL headers
 if [ -d "$DESTDIR/include" ]; then
