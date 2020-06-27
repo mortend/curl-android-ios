@@ -38,5 +38,5 @@ bash build_iOS.sh
 ## Building for Windows
 ```shell
 cd curl-compile-scripts
-bash build_VS2017.sh
+bash build_VS2019.sh    # or build_VS2017.sh
 ```
